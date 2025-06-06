@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>图片背景去除网站</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    #drop-zone {
+      border: 2px dashed #aaa; padding: 30px;
+      text-align: center; color: #aaa;
+    }
+    #drop-zone.dragover {
+      border-color: #333; color: #333;
+    }
+    #preview { margin-top: 20px; }
+    #result { max-width: 100%; margin-top: 20px; display: none; }
+    #progress-container {
+      display: none;
+      margin-top: 20px;
+    }
+    #download-link {
+      display: none;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>图片处理工具</h1>
+
+  <div id="drop-zone">将图片拖拽到此处，或点击上传</div>
+  <input type="file" id="file-input" style="display: none;" accept="image/*">
+
+  <div style="margin-top: 20px;">
+    <label>处理方式：</label>
+    <select id="mode">
+      <option value="remove">去除背景</option>
+      <option value="grayscale">灰度</option>
+      <option value="invert">颜色反转</option>
+    </select>
+    <button onclick="upload()">开始处理</button>
+  </div>
+
+  <div id="preview"></div>
+
+  <div id="progress-container">
+    <label>处理中...</label>
+    <progress id="progress-bar" value="0" max="100" style="width: 100%;"></progress>
+  </div>
+
+  <img id="result" />
+
+  <div>
+    <a id="download-link" href="#" download="processed.png">点击下载处理后的图片</a>
+  </div>
+
+  <script>
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+  const progressContainer = document.getElementById('progress-container');
+  const progressBar = document.getElementById('progress-bar');
+  const resultImg = document.getElementById('result');
+  const downloadLink = document.getElementById('download-link');
+  let currentFile = null;
+  let intervalId = null;
+
+  dropZone.addEventListener('click', () => fileInput.click());
+
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+
+  dropZone.addEventListener('dragleave', () => {
+    dropZone.classList.remove('dragover');
+  });
+
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    handleFile(e.dataTransfer.files[0]);
+  });
+
+  fileInput.addEventListener('change', (e) => {
+    handleFile(e.target.files[0]);
+  });
+
+  function handleFile(file) {
+    currentFile = file;
+    const reader = new FileReader();
+    reader.onload = e => {
+      document.getElementById('preview').innerHTML = '<img src="' + e.target.result + '" style="max-width:300px;" />';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function upload() {
+    if (!currentFile) {
+      alert('请上传图片');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('image', currentFile);
+    formData.append('mode', document.getElementById('mode').value);
+
+    progressContainer.style.display = 'block';
+    progressBar.value = 0;
+    resultImg.style.display = 'none';
+    downloadLink.style.display = 'none';
+
+    intervalId = setInterval(() => {
+      if (progressBar.value < 90) {
+        progressBar.value += 5;
+      }
+    }, 200);
+
+    try {
+      const res = await fetch('/remove-bg', {
+        method: 'POST',
+        body: formData
+      });
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+
+      clearInterval(intervalId);
+      progressBar.value = 100;
+
+      resultImg.src = url;
+      resultImg.style.display = 'block';
+
+      downloadLink.href = url;
+      downloadLink.style.display = 'inline-block';
+    } catch (error) {
+      clearInterval(intervalId);
+      progressBar.value = 0;
+      alert('处理失败，请检查网络或后端服务是否启动');
+    }
+  }
+</script>
+</body>
+</html>
